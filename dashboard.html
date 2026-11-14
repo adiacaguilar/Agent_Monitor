@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Monitor</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --line:#e3e6eb; --text:#16181d; --muted:#667085; --soft:#f1f3f6;
+  --accent:#2563eb; --ok:#16a34a; --warn:#d97706; --crit:#dc2626; --info:#6366f1;
+  --warn-bg:#fff7ea; --crit-bg:#fdeeee; --info-bg:#f0f0ff;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1015; --panel:#161920; --line:#252a33; --text:#e7e9ee; --muted:#8a93a6; --soft:#1c2029;
+    --accent:#60a5fa; --ok:#4ade80; --warn:#fbbf24; --crit:#f87171; --info:#a5b4fc;
+    --warn-bg:#2a2212; --crit-bg:#2c1517; --info-bg:#1c1d33;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1015; --panel:#161920; --line:#252a33; --text:#e7e9ee; --muted:#8a93a6; --soft:#1c2029;
+  --accent:#60a5fa; --ok:#4ade80; --warn:#fbbf24; --crit:#f87171; --info:#a5b4fc;
+  --warn-bg:#2a2212; --crit-bg:#2c1517; --info-bg:#1c1d33;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+.wrap{max-width:1320px;margin:0 auto;padding:20px 24px 48px}
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+h1{font-size:20px;margin:0;font-weight:650;letter-spacing:-.01em}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px;font-weight:600}
+.live{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:pulse 2s infinite}
+.dot.off{background:var(--crit);animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 60%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.spacer{flex:1}
+.chip{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-weight:600}
+.chip.crit{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,var(--line))}
+.chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+.chip.info{color:var(--info)}
+button.theme{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:4px 10px;cursor:pointer;font:inherit;font-size:12px}
+.grid{display:grid;gap:14px}
+.tiles{grid-template-columns:repeat(4,1fr);margin-bottom:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.tile .k{color:var(--muted);font-size:12px}
+.tile .v{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tile .s{color:var(--muted);font-size:12px;min-height:18px}
+.spark{width:100%;height:38px;display:block;margin-top:6px}
+.main{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}
+.issue{border-left:3px solid var(--line);padding:9px 12px;border-radius:6px;margin-bottom:8px;background:var(--soft)}
+.issue.crit{border-color:var(--crit);background:var(--crit-bg)}
+.issue.warn{border-color:var(--warn);background:var(--warn-bg)}
+.issue.info{border-color:var(--info);background:var(--info-bg)}
+.issue b{display:block;font-weight:600}
+.issue .sev{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.issue.crit .sev{color:var(--crit)} .issue.warn .sev{color:var(--warn)} .issue.info .sev{color:var(--info)}
+.issue p{margin:3px 0 0;color:var(--muted);font-size:13px}
+.issue .fix{color:var(--text)}
+code,.cmd{font-family:var(--mono);font-size:12px}
+.cmd{display:flex;gap:8px;align-items:center;margin-top:6px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px;overflow-x:auto;white-space:nowrap}
+.cmd span{flex:1}
+.cmd button{border:0;background:none;color:var(--accent);cursor:pointer;font:600 11px -apple-system,system-ui;flex:none}
+.agents{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.agent{position:relative}
+.agent .top{display:flex;align-items:center;gap:8px}
+.agent .name{font-weight:600}
+.badge{font-size:11px;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--muted);font-weight:600}
+.badge.busy{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.badge.idle{color:var(--muted)}
+.badge.flag{background:var(--warn-bg);color:var(--warn)}
+.agent .desc{color:var(--muted);font-size:12px;margin:2px 0 8px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-variant-numeric:tabular-nums}
+.stats div{background:var(--soft);border-radius:6px;padding:4px 8px}
+.stats small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.meta{font-size:12px;color:var(--muted);margin-top:8px;word-break:break-all}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--accent);font-size:12px}
+.plist{font-family:var(--mono);font-size:11px;color:var(--muted);max-height:180px;overflow:auto;margin-top:6px}
+.plist div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 0}
+.stages{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.stage{flex:1;min-width:110px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--soft)}
+.stage small{display:block;color:var(--muted);font-size:11px}
+.stage.done{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.stage.working{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 20%,transparent)}
+.stage.gate{border-color:var(--warn)}
+.bars{display:flex;flex-direction:column;gap:4px}
+.bar{display:grid;grid-template-columns:130px 1fr 62px;gap:8px;align-items:center;font-size:12px}
+.bar .track{height:10px;background:var(--soft);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%;background:var(--accent);border-radius:4px}
+.bar.stall .fill{background:var(--crit)} .bar.stall{color:var(--crit);font-weight:600}
+.bar .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.feed{font-family:var(--mono);font-size:12px;max-height:340px;overflow:auto}
+.feed div{display:grid;grid-template-columns:62px 150px 1fr;gap:8px;padding:3px 0;border-bottom:1px dashed var(--line)}
+.feed .t{color:var(--muted)} .feed .src{color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed .WARN .m{color:var(--warn)} .feed .ERROR .m{color:var(--crit)}
+.tips{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.tip b{display:block;margin-bottom:3px}
+.tip p{margin:0;color:var(--muted);font-size:13px}
+.empty{color:var(--muted);font-size:13px;padding:8px 0}
+section{margin-top:14px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:8px}
+.legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+@media (max-width:900px){.tiles{grid-template-columns:repeat(2,1fr)}.main{grid-template-columns:1fr}}
+@media (max-width:520px){.wrap{padding:14px 16px 40px}.tiles{grid-template-columns:1fr}.feed div{grid-template-columns:58px 1fr}.feed .src{display:none}.bar{grid-template-columns:100px 1fr 54px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Agent Monitor</h1>
+    <span class="live"><span class="dot" id="dot"></span><span id="clock">connecting…</span></span>
+    <span class="spacer"></span>
+    <span id="counts"></span>
+    <button class="theme" id="theme">Theme</button>
+  </header>
+
+  <div class="grid tiles">
+    <div class="panel tile"><div class="k">CPU (all cores)</div><div class="v" id="cpu">–</div><div class="s" id="cpu-s"></div><svg class="spark" id="sp-cpu"></svg></div>
+    <div class="panel tile"><div class="k">Memory used</div><div class="v" id="mem">–</div><div class="s" id="mem-s"></div><svg class="spark" id="sp-mem"></svg></div>
+    <div class="panel tile"><div class="k">GPU</div><div class="v" id="gpu">–</div><div class="s" id="gpu-s"></div><svg class="spark" id="sp-gpu"></svg></div>
+    <div class="panel tile"><div class="k">Local model (LM Studio)</div><div class="v" id="model">–</div><div class="s" id="model-s"></div><div class="s" id="model-s2"></div></div>
+  </div>
+
+  <div class="grid main">
+    <div class="panel">
+      <h2>Irregularities</h2>
+      <div id="issues"><div class="empty">Collecting…</div></div>
+    </div>
+    <div class="panel">
+      <h2>Agent CPU, last 5 min</h2>
+      <div class="legend" id="legend"></div>
+      <svg id="sp-agents" style="width:100%;height:150px;display:block"></svg>
+      <section>
+        <h2>EAD pipeline</h2>
+        <div id="ead"><div class="empty">Not running</div></div>
+      </section>
+    </div>
+  </div>
+
+  <section>
+    <h2>Agents on this Mac</h2>
+    <div class="grid agents" id="agents"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Live activity</h2>
+    <div class="feed" id="feed"></div>
+  </section>
+
+  <section>
+    <h2>Suggestions</h2>
+    <div class="grid tips" id="tips"></div>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const gb = b => (b / 1073741824).toFixed(b > 10 * 1073741824 ? 0 : 1) + " GB";
+const dur = s => s < 60 ? Math.round(s) + "s" : s < 3600 ? Math.round(s / 60) + "m" : s < 86400 ? (s / 3600).toFixed(1) + "h" : (s / 86400).toFixed(1) + "d";
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const PALETTE = ["--accent", "--ok", "--warn", "--info", "--crit"];
+const colorOf = {};
+
+// theme toggle (per-viewer convenience only)
+(() => {
+  let t; try { t = localStorage.getItem("am-theme"); } catch (e) {}
+  if (t) document.documentElement.dataset.theme = t;
+  $("theme").onclick = () => {
+    const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const next = cur === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("am-theme", next); } catch (e) {}
+  };
+})();
+
+function spark(svg, values, color, max = 100) {
+  const w = svg.clientWidth || 200, h = svg.clientHeight || 38;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  const v = values.map(x => x ?? 0);
+  if (v.length < 2) { svg.innerHTML = ""; return; }
+  const step = w / (150 - 1), x0 = w - (v.length - 1) * step;
+  const pts = v.map((y, i) => [x0 + i * step, h - 2 - (Math.min(y, max) / max) * (h - 4)]);
+  const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  svg.innerHTML = `<path d="${d} L${w} ${h} L${pts[0][0]} ${h}Z" fill="${color}" opacity=".12"/><path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round"/>`;
+}
+
+function multi(svg, hist, keys, names) {
+  const w = svg.clientWidth || 400, h = svg.clientHeight || 150;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  let max = 10;
+  hist.forEach(s => keys.forEach(k => { max = Math.max(max, s.groups[k] || 0); }));
+  max = Math.ceil(max / 25) * 25;
+  const step = w / 149, x0 = w - (hist.length - 1) * step;
+  let out = "";
+  [0, .5, 1].forEach(f => {
+    const y = h - 14 - f * (h - 24);
+    out += `<line x1="0" x2="${w}" y1="${y}" y2="${y}" stroke="${css("--line")}"/><text x="2" y="${y - 3}" font-size="10" fill="${css("--muted")}">${Math.round(f * max)}%</text>`;
+  });
+  keys.forEach(k => {
+    const d = hist.map((s, i) => (i ? "L" : "M") + (x0 + i * step).toFixed(1) + " " + (h - 14 - ((s.groups[k] || 0) / max) * (h - 24)).toFixed(1)).join(" ");
+    out += `<path d="${d}" fill="none" stroke="${css(colorOf[k])}" stroke-width="1.6"/>`;
+  });
+  svg.innerHTML = out;
+  $("legend").innerHTML = keys.map(k => `<span><i style="background:${css(colorOf[k])}"></i>${esc(names[k])}</span>`).join("");
+}
+
+function copyBtn(cmd) {
+  return `<div class="cmd"><span>${esc(cmd)}</span><button data-c="${esc(cmd)}">Copy</button></div>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("button[data-c]");
+  if (!b) return;
+  navigator.clipboard?.writeText(b.dataset.c).then(() => { b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1200); });
+});
+
+const open = new Set();
+document.addEventListener("toggle", e => { if (e.target.dataset?.k) e.target.open ? open.add(e.target.dataset.k) : open.delete(e.target.dataset.k); }, true);
+
+function render(s) {
+  const H = s.history || [];
+  $("clock").textContent = "live · " + s.time;
+  $("dot").className = "dot";
+
+  // tiles
+  $("cpu").textContent = s.cpu.toFixed(0) + "%";
+  $("cpu-s").textContent = s.host.ncpu + " cores";
+  spark($("sp-cpu"), H.map(x => x.cpu), css("--accent"));
+  $("mem").textContent = (s.mem.used_pct ?? "–") + "%";
+  $("mem-s").textContent = gb(s.host.mem_total) + " total · swap " + (s.mem.swap_mb / 1024).toFixed(1) + " GB";
+  spark($("sp-mem"), H.map(x => x.mem), css("--info"));
+  $("gpu").textContent = s.gpu.util != null ? s.gpu.util + "%" : "–";
+  $("gpu-s").textContent = s.gpu.mem ? gb(s.gpu.mem) + " GPU memory in use" : "";
+  spark($("sp-gpu"), H.map(x => x.gpu), css("--warn"));
+  const m = (s.lmstudio.models || [])[0];
+  if (m) {
+    const busy = m.status !== "idle";
+    $("model").innerHTML = `<span style="color:${busy ? css("--accent") : "inherit"}">${busy ? esc(m.status) : "Idle"}</span>`;
+    $("model-s").textContent = `${m.name} · ${m.quant || ""} · ${gb(m.size)} · ctx ${(m.ctx / 1024).toFixed(0)}k`;
+    $("model-s2").textContent = (m.idle_s != null ? "last used " + dur(m.idle_s) + " ago" : "") + ` · parallel ${m.parallel} · queue ${m.queued} · TTL ${m.ttl ? dur(m.ttl / 1000) : "none"}`;
+  } else {
+    $("model").textContent = s.lmstudio.up ? "No model" : "Off";
+    $("model-s").textContent = ""; $("model-s2").textContent = "";
+  }
+
+  // issues
+  const c = {crit: 0, warn: 0, info: 0};
+  s.issues.forEach(i => c[i.sev]++);
+  $("counts").innerHTML = [["crit", "critical"], ["warn", "warnings"], ["info", "info"]].filter(([k]) => c[k]).map(([k, n]) => `<span class="chip ${k}">${c[k]} ${n}</span> `).join("") || `<span class="chip">All clear</span>`;
+  $("issues").innerHTML = s.issues.length ? s.issues.map(i => `
+    <div class="issue ${i.sev}"><b><span class="sev">${i.sev === "crit" ? "Critical" : i.sev === "warn" ? "Warning" : "Info"}</span>${esc(i.title)}</b>
+    <p>${esc(i.detail)}</p>${i.fix ? `<p class="fix">${esc(i.fix)}</p>` : ""}${i.cmd ? copyBtn(i.cmd) : ""}</div>`).join("")
+    : `<div class="empty">Nothing unusual right now.</div>`;
+
+  // agent cpu chart
+  const keys = Object.keys(s.groups).sort();
+  keys.forEach((k, i) => { if (!colorOf[k]) colorOf[k] = PALETTE[Object.keys(colorOf).length % PALETTE.length]; });
+  const names = Object.fromEntries(keys.map(k => [k, s.groups[k].name]));
+  multi($("sp-agents"), H, keys, names);
+
+  // agents
+  const flagged = new Set(s.issues.map(i => i.title));
+  $("agents").innerHTML = keys.map(k => {
+    const g = s.groups[k];
+    const busy = g.cpu > 5;
+    const flag = s.issues.some(i => i.title.includes(g.name));
+    return `<div class="panel agent">
+      <div class="top"><span class="name">${esc(g.name)}</span>
+        <span class="badge ${busy ? "busy" : "idle"}">${busy ? "active" : "idle"}</span>
+        ${flag ? `<span class="badge flag">check</span>` : ""}</div>
+      <div class="desc">${esc(g.desc)}</div>
+      <div class="stats"><div><small>CPU</small>${g.cpu.toFixed(1)}%</div><div><small>Memory</small>${gb(g.rss)}</div><div><small>Up</small>${dur(g.age)}</div></div>
+      <div class="meta">${g.procs.length} process${g.procs.length > 1 ? "es" : ""}${g.listen.length ? " · ports " + g.listen.map(esc).join(", ") : ""}${g.external && g.external.length ? `<br>internet: ${g.external.length} host(s) · ${esc(g.external.slice(0, 2).join(", "))}` : ""}</div>
+      <details data-k="${k}" ${open.has(k) ? "open" : ""}><summary>Processes</summary><div class="plist">${g.procs.map(p => `<div title="${esc(p.cmd)}">${p.pid} · ${p.cpu.toFixed(1)}% · ${gb(p.rss)} · ${esc(p.cmd)}</div>`).join("")}</div></details>
+    </div>`;
+  }).join("") || `<div class="empty">No agents detected.</div>`;
+
+  // EAD
+  const e = s.ead, st = e.status;
+  let html = "";
+  if (st) {
+    html += `<div class="meta" style="margin:0 0 8px">${esc(st.platform)} · level ${esc(st.level)} · <b style="color:var(--text)">${esc(st.state)}</b> · ${dur(st.elapsed || 0)} · findings ${st.findings?.major ?? 0} major / ${st.findings?.minor ?? 0} minor</div>`;
+    html += `<div class="stages">` + Object.values(st.stages).map(x => `<div class="stage ${esc(x.state)}"><b>${esc(x.title)}</b><small>${esc(x.state)} · ${x.calls} call${x.calls === 1 ? "" : "s"} · ${dur(x.seconds)}</small></div>`).join("") + `</div>`;
+  }
+  if (e.audit && e.audit.calls.length) {
+    const calls = e.audit.calls, mx = Math.max(...calls.map(c => c.s)), sorted = calls.map(c => c.s).sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    html += `<div class="meta" style="margin:0 0 6px">Model call durations · run ${esc(e.audit.run)} (${e.audit.starts} start${e.audit.starts > 1 ? "s" : ""})</div><div class="bars">` +
+      calls.map(c => { const stall = c.s > Math.max(1200, 3 * med); return `<div class="bar ${stall ? "stall" : ""}"><span>${esc(c.stage)} #${c.call}</span><div class="track"><div class="fill" style="width:${Math.max(2, Math.sqrt(c.s / mx) * 100)}%"></div></div><span class="n">${dur(c.s)}</span></div>`; }).join("") +
+      `</div><div class="meta">Bar length uses a square-root scale so short calls stay visible.</div>`;
+  }
+  $("ead").innerHTML = html || `<div class="empty">Not running</div>`;
+
+  // feed
+  const feed = $("feed"), atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 30;
+  feed.innerHTML = (s.feed || []).map(f => `<div class="${esc(f.lvl)}"><span class="t">${esc(f.t)}</span><span class="src" title="${esc(f.src)}">${esc(f.src)}</span><span class="m">${esc(f.msg)}</span></div>`).join("") || `<div class="empty">No activity yet.</div>`;
+  if (atBottom) feed.scrollTop = feed.scrollHeight;
+
+  $("tips").innerHTML = s.tips.map(t => `<div class="panel tip"><b>${esc(t.title)}</b><p>${esc(t.detail)}</p></div>`).join("");
+}
+
+async function tick() {
+  try {
+    const r = await fetch("/api/snapshot", {cache: "no-store"});
+    const s = await r.json();
+    if (s.time) render(s);
+  } catch (e) {
+    $("dot").className = "dot off";
+    $("clock").textContent = "monitor not reachable";
+  }
+  setTimeout(tick, 2000);
+}
+tick();
+</script>
+</body>
+</html>
