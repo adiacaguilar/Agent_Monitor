@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 PORT = 8790
-POLL = 2.0
+POLL = float(os.environ.get("AGENT_MONITOR_POLL", "2.0"))
 HOME = Path.home()
 LMS = HOME / ".lmstudio/bin/lms"
 LMS_LOGS = HOME / ".lmstudio/server-logs"
